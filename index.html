@@ -386,6 +386,7 @@ body {
         <span class="legend-item"><span class="dot dot-partial"></span>in progress</span>
         <span class="legend-item"><span class="dot dot-empty"></span>not started</span>
       </div>
+      <span id="autosave-indicator" style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.45);letter-spacing:0.04em;"></span>
       <button class="topbar-btn" onclick="openImport()">Import session</button>
       <button class="topbar-btn accent" onclick="exportSession()">Export session</button>
     </div>
@@ -662,6 +663,7 @@ function finalize() {
   document.getElementById('topbar-actions').style.display = 'flex';
   document.getElementById('empty-state').style.display = 'flex';
   renderLibList('');
+  autoSave();
 }
 
 /* ── Library list ── */
@@ -735,6 +737,7 @@ function saveEntry() {
   document.getElementById('save-msg').textContent = 'Saved';
   setTimeout(() => document.getElementById('save-msg').textContent = '', 2000);
   renderLibList(document.getElementById('lib-search').value.toLowerCase());
+  autoSave();
 }
 
 /* ── Tabs ── */
@@ -845,6 +848,23 @@ function readSession(file, cb) {
   r.readAsText(file);
 }
 
+/* ── Auto-save ── */
+function autoSave() {
+  try {
+    var payload = {
+      version: 1,
+      savedAt: new Date().toISOString(),
+      entries: entries,
+      feedbackData: feedbackData,
+      contactsData: contactsData
+    };
+    localStorage.setItem('libraryReviewSession', JSON.stringify(payload));
+    var ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    var el = document.getElementById('autosave-indicator');
+    if (el) el.textContent = 'Auto-saved ' + ts;
+  } catch(e) {}
+}
+
 /* ── Helpers ── */
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -856,6 +876,24 @@ function notify(msg) {
   el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 2200);
 }
+
+/* ── Auto-restore on load ── */
+(function() {
+  try {
+    var saved = localStorage.getItem('libraryReviewSession');
+    if (!saved) return;
+    var p = JSON.parse(saved);
+    if (p.feedbackData && Object.keys(p.feedbackData).length) {
+      if (p.entries) entries = p.entries;
+      feedbackData = p.feedbackData;
+      if (p.contactsData) contactsData = p.contactsData;
+      finalize();
+      var ts = p.savedAt ? new Date(p.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+      var el = document.getElementById('autosave-indicator');
+      if (el) el.textContent = 'Restored · last saved ' + ts;
+    }
+  } catch(e) {}
+})();
 </script>
 </body>
 </html>
