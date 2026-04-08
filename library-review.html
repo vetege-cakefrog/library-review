@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Library Annual Report Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Mono:wght@400;500&family=Literata:ital,opsz,wght@0,7..72,300;0,7..72,400;0,7..72,500;1,7..72,300&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #1a1814;
+  --ink2: #4a4640;
+  --ink3: #8a8680;
+  --paper: #f7f4ef;
+  --paper2: #eeeae3;
+  --paper3: #e4ded5;
+  --rule: #d4cfc7;
+  --accent: #2d5a3d;
+  --accent-light: #e8f0eb;
+  --accent2: #7a3e1a;
+  --accent2-light: #f5ede6;
+  --warn: #b85c00;
+  --warn-light: #fef3e8;
+  --mono: 'DM Mono', monospace;
+  --serif: 'DM Serif Display', serif;
+  --body: 'Literata', Georgia, serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; }
+body {
+  font-family: var(--body);
+  background: var(--paper);
+  color: var(--ink);
+  min-height: 100vh;
+  line-height: 1.6;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--paper2); }
+::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 3px; }
+
+/* ── Layout ── */
+.app { display: grid; grid-template-columns: 260px 1fr; grid-template-rows: 52px 1fr; height: 100vh; overflow: hidden; }
+
+/* ── Top bar ── */
+.topbar {
+  grid-column: 1 / -1;
+  background: var(--ink);
+  color: var(--paper);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.5rem;
+  border-bottom: 1px solid #2e2c28;
+}
+.topbar-title { font-family: var(--serif); font-size: 1.2rem; letter-spacing: 0.01em; }
+.topbar-actions { display: flex; gap: 8px; align-items: center; }
+.topbar-btn {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 5px 12px;
+  border-radius: 3px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: transparent;
+  color: var(--paper);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.topbar-btn:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.35); }
+.topbar-btn.accent { background: var(--accent); border-color: var(--accent); }
+.topbar-btn.accent:hover { background: #234a30; }
+
+/* ── Sidebar ── */
+.sidebar {
+  background: var(--paper2);
+  border-right: 1px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sidebar-search {
+  padding: 10px;
+  border-bottom: 1px solid var(--rule);
+}
+.sidebar-search input {
+  width: 100%;
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 7px 10px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  color: var(--ink);
+  outline: none;
+}
+.sidebar-search input:focus { border-color: var(--accent); }
+.sidebar-search input::placeholder { color: var(--ink3); }
+.sidebar-meta {
+  padding: 6px 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink3);
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  justify-content: space-between;
+}
+.lib-list { flex: 1; overflow-y: auto; }
+.lib-item {
+  padding: 9px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background 0.1s;
+  font-size: 13px;
+  line-height: 1.3;
+}
+.lib-item:hover { background: var(--paper3); }
+.lib-item.active { background: var(--accent-light); border-left: 3px solid var(--accent); padding-left: 9px; }
+.lib-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-item-fscs { font-family: var(--mono); font-size: 10px; color: var(--ink3); margin-top: 1px; }
+.dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-left: 6px;
+}
+.dot-done { background: var(--accent); }
+.dot-partial { background: var(--warn); }
+.dot-empty { background: var(--rule); }
+
+/* ── Main ── */
+.main { overflow-y: auto; display: flex; flex-direction: column; }
+
+/* ── Loading screen ── */
+.load-screen {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  padding: 3rem;
+}
+.load-card {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 2rem 2.5rem;
+  max-width: 500px;
+  width: 100%;
+}
+.load-card h2 { font-family: var(--serif); font-size: 1.5rem; margin-bottom: 0.4rem; }
+.load-card p { font-size: 13px; color: var(--ink2); margin-bottom: 1.5rem; line-height: 1.7; }
+.file-row { margin-bottom: 1rem; }
+.file-row label { font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink3); display: block; margin-bottom: 5px; }
+.file-row input[type=file] { font-family: var(--mono); font-size: 12px; color: var(--ink2); }
+.load-actions { display: flex; gap: 10px; align-items: center; margin-top: 1.5rem; }
+.btn {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 8px 16px;
+  border-radius: 3px;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn:hover { background: var(--paper3); border-color: var(--ink3); }
+.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn.primary:hover { background: #234a30; }
+.btn.danger { background: var(--accent2); color: #fff; border-color: var(--accent2); }
+.load-status { font-family: var(--mono); font-size: 11px; color: var(--ink3); }
+
+/* ── Empty state ── */
+.empty-state {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  color: var(--ink3); font-style: italic; font-size: 14px;
+  flex-direction: column; gap: 8px;
+}
+.empty-state .big { font-family: var(--serif); font-size: 1.6rem; color: var(--rule); font-style: normal; }
+
+/* ── Form ── */
+.form-wrap { padding: 1.5rem 2rem; flex: 1; }
+.form-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--rule);
+}
+.form-header h2 { font-family: var(--serif); font-size: 1.6rem; line-height: 1.2; }
+.form-header .fscs-tag {
+  font-family: var(--mono); font-size: 11px; color: var(--ink3);
+  background: var(--paper2); border: 1px solid var(--rule);
+  padding: 2px 8px; border-radius: 3px; margin-top: 4px; display: inline-block;
+}
+.contacts-block { text-align: right; }
+.contact-chip {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 11px;
+  background: var(--paper2);
+  border: 1px solid var(--rule);
+  padding: 3px 8px;
+  border-radius: 3px;
+  margin: 2px;
+  color: var(--ink2);
+}
+
+/* ── Tabs ── */
+.tabs { display: flex; border-bottom: 1px solid var(--rule); margin-bottom: 1.5rem; }
+.tab-btn {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 8px 16px;
+  background: none;
+  border: none;
+  color: var(--ink3);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s;
+}
+.tab-btn:hover { color: var(--ink); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── Review form ── */
+.field { margin-bottom: 1.2rem; }
+.field label {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--ink3); display: block; margin-bottom: 6px;
+}
+.field textarea {
+  width: 100%;
+  font-family: var(--body);
+  font-size: 14px;
+  line-height: 1.7;
+  padding: 12px 14px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  color: var(--ink);
+  resize: vertical;
+  min-height: 220px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.field textarea:focus { border-color: var(--accent); }
+.checklist {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 1rem 1.2rem;
+  margin-bottom: 1.2rem;
+}
+.checklist-title { font-family: var(--mono); font-size: 10px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink3); margin-bottom: 10px; }
+.check-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+.check-row input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+.check-row label { font-size: 14px; cursor: pointer; color: var(--ink); }
+.form-actions { display: flex; gap: 10px; align-items: center; }
+.save-msg { font-family: var(--mono); font-size: 11px; color: var(--accent); }
+
+/* ── History ── */
+.history-empty { font-style: italic; color: var(--ink3); font-size: 14px; }
+.history-entry {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--rule);
+}
+.history-entry:last-child { border-bottom: none; }
+.history-year {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.history-text {
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--ink);
+  white-space: pre-wrap;
+  font-family: var(--body);
+}
+.history-intro {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--ink3);
+  margin-bottom: 6px;
+  font-family: var(--body);
+}
+
+/* ── Email ── */
+.email-field { margin-bottom: 1rem; }
+.email-field label { font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink3); display: block; margin-bottom: 5px; }
+.email-field input[type=text] {
+  width: 100%;
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 8px 10px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  color: var(--ink);
+  outline: none;
+}
+.email-field input:focus { border-color: var(--accent); }
+.email-body-wrap { position: relative; }
+.email-body {
+  width: 100%;
+  font-family: var(--body);
+  font-size: 14px;
+  line-height: 1.75;
+  padding: 14px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  color: var(--ink);
+  resize: vertical;
+  min-height: 260px;
+  outline: none;
+}
+.email-body:focus { border-color: var(--accent); }
+.email-to { font-family: var(--mono); font-size: 11px; color: var(--ink3); margin-top: 8px; }
+.email-actions { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+
+/* ── Progress bar ── */
+.progress-bar { height: 3px; background: var(--paper2); }
+.progress-fill { height: 100%; background: var(--accent); transition: width 0.3s; }
+
+/* ── Notification ── */
+.notif {
+  position: fixed; bottom: 20px; right: 20px;
+  background: var(--ink); color: var(--paper);
+  font-family: var(--mono); font-size: 12px;
+  padding: 10px 16px; border-radius: 4px;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s;
+  z-index: 999;
+}
+.notif.show { opacity: 1; }
+
+/* ── Legend ── */
+.legend {
+  display: flex; gap: 14px; align-items: center;
+  font-family: var(--mono); font-size: 10px; color: var(--ink3); letter-spacing: 0.04em;
+}
+.legend-item { display: flex; align-items: center; gap: 5px; }
+
+/* ── Import/Export modal backdrop ── */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(26,24,20,0.6);
+  display: flex; align-items: center; justify-content: center; z-index: 100;
+  display: none;
+}
+.modal-backdrop.open { display: flex; }
+.modal {
+  background: var(--paper); border: 1px solid var(--rule);
+  border-radius: 6px; padding: 2rem; max-width: 460px; width: 100%;
+}
+.modal h3 { font-family: var(--serif); font-size: 1.3rem; margin-bottom: 0.5rem; }
+.modal p { font-size: 13px; color: var(--ink2); margin-bottom: 1.2rem; line-height: 1.7; }
+.modal-actions { display: flex; gap: 8px; }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <span class="topbar-title">Library Annual Report Review</span>
+    <div class="topbar-actions" id="topbar-actions" style="display:none;">
+      <div class="legend">
+        <span class="legend-item"><span class="dot dot-done"></span>complete</span>
+        <span class="legend-item"><span class="dot dot-partial"></span>in progress</span>
+        <span class="legend-item"><span class="dot dot-empty"></span>not started</span>
+      </div>
+      <button class="topbar-btn" onclick="openImport()">Import session</button>
+      <button class="topbar-btn accent" onclick="exportSession()">Export session</button>
+    </div>
+  </header>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar" style="display:none;">
+    <div class="sidebar-search">
+      <input type="text" id="lib-search" placeholder="Search libraries..." oninput="filterLibs()">
+    </div>
+    <div class="sidebar-meta">
+      <span id="lib-count-label">0 libraries</span>
+      <span id="progress-label">0% complete</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+    <div class="lib-list" id="lib-list"></div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main" id="main">
+
+    <!-- Load screen -->
+    <div class="load-screen" id="load-screen">
+      <div class="load-card">
+        <h2>Load your data</h2>
+        <p>Upload your annual feedback files (one CSV per year) and your contacts CSV. Files are read locally — nothing leaves your browser.</p>
+        <div class="file-row">
+          <label>Annual feedback files (one or more, e.g. FY24.csv, FY23.csv)</label>
+          <input type="file" id="file-feedback" accept=".csv,.txt,.tsv" multiple>
+        </div>
+        <div class="file-row">
+          <label>Contacts file</label>
+          <input type="file" id="file-contacts" accept=".csv,.txt,.tsv">
+        </div>
+        <div class="load-actions">
+          <button class="btn primary" onclick="loadFiles()">Load files</button>
+          <button class="btn" onclick="loadDemo()">Use demo data</button>
+          <span class="load-status" id="load-status"></span>
+        </div>
+        <div style="margin-top:1.5rem; padding-top:1rem; border-top:1px solid var(--rule);">
+          <p style="margin-bottom:0.8rem; color:var(--ink3);">Resuming a previous session?</p>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <input type="file" id="file-session" accept=".json" style="font-family:var(--mono);font-size:12px;color:var(--ink2);">
+            <button class="btn" onclick="importSession()">Restore session</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty state -->
+    <div class="empty-state" id="empty-state" style="display:none;">
+      <span class="big">←</span>
+      <span>Select a library to begin reviewing</span>
+    </div>
+
+    <!-- Review form -->
+    <div class="form-wrap" id="form-wrap" style="display:none;">
+      <div class="form-header">
+        <div>
+          <h2 id="form-libname">—</h2>
+          <span class="fscs-tag" id="form-fscs">—</span>
+        </div>
+        <div class="contacts-block" id="contact-chips"></div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('review',this)">Review</button>
+        <button class="tab-btn" onclick="switchTab('history',this)">Prior years</button>
+        <button class="tab-btn" onclick="switchTab('email',this)">Email draft</button>
+      </div>
+
+      <!-- Review tab -->
+      <div class="tab-panel active" id="tab-review">
+        <div class="field">
+          <label>Current year feedback</label>
+          <textarea id="feedback-text" placeholder="Enter your feedback for this library's annual report..."></textarea>
+        </div>
+        <div class="checklist">
+          <div class="checklist-title">Review checklist</div>
+          <div class="check-row"><input type="checkbox" id="chk-libpas"><label for="chk-libpas">LibPAS review</label></div>
+          <div class="check-row"><input type="checkbox" id="chk-notes"><label for="chk-notes">Notes review</label></div>
+          <div class="check-row"><input type="checkbox" id="chk-prior"><label for="chk-prior">Prior year review</label></div>
+        </div>
+        <div class="form-actions">
+          <button class="btn primary" onclick="saveEntry()">Save</button>
+          <span class="save-msg" id="save-msg"></span>
+        </div>
+      </div>
+
+      <!-- History tab -->
+      <div class="tab-panel" id="tab-history">
+        <div id="history-content"></div>
+      </div>
+
+      <!-- Email tab -->
+      <div class="tab-panel" id="tab-email">
+        <div class="email-field">
+          <label>To</label>
+          <input type="text" id="email-to" readonly>
+        </div>
+        <div class="email-field">
+          <label>Subject</label>
+          <input type="text" id="email-subject">
+        </div>
+        <div class="email-field">
+          <label>Body</label>
+          <div class="email-body-wrap">
+            <textarea class="email-body" id="email-body"></textarea>
+          </div>
+        </div>
+        <div class="email-actions">
+          <button class="btn primary" onclick="copyEmail()">Copy full email</button>
+          <button class="btn" onclick="generateEmail()">Regenerate</button>
+          <span class="save-msg" id="email-copy-msg"></span>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Import modal -->
+<div class="modal-backdrop" id="import-modal">
+  <div class="modal">
+    <h3>Import session</h3>
+    <p>Select a previously exported session file (.json) to restore your saved feedback, checkboxes, and progress.</p>
+    <input type="file" id="file-session-modal" accept=".json" style="font-family:var(--mono);font-size:12px;margin-bottom:1.2rem;display:block;">
+    <div class="modal-actions">
+      <button class="btn primary" onclick="importSessionModal()">Restore</button>
+      <button class="btn" onclick="closeImport()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Notification -->
+<div class="notif" id="notif"></div>
+
+<script>
+var feedbackData = {};
+var contactsData = {};
+var libraries = [];
+var currentFSCS = null;
+var entries = {};
+
+/* ── Parsing ── */
+function detectSep(line) {
+  var t = (line.match(/\t/g)||[]).length;
+  var c = (line.match(/,/g)||[]).length;
+  return t >= c ? '\t' : ',';
+}
+
+function parseCSV(text) {
+  var lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').trim().split('\n');
+  if (!lines.length) return [];
+  var sep = detectSep(lines[0]);
+  var headers = splitLine(lines[0], sep);
+  return lines.slice(1).filter(l => l.trim()).map(line => {
+    var vals = splitLine(line, sep);
+    var obj = {};
+    headers.forEach((h,i) => obj[h.trim()] = (vals[i]||'').trim());
+    return obj;
+  });
+}
+
+function splitLine(line, sep) {
+  var vals = [], cur = '', inQ = false;
+  for (var i = 0; i < line.length; i++) {
+    var c = line[i];
+    if (c === '"') { inQ = !inQ; }
+    else if (c === sep && !inQ) { vals.push(cur); cur = ''; }
+    else cur += c;
+  }
+  vals.push(cur);
+  return vals;
+}
+
+function extractYear(filename) {
+  var m = filename.match(/FY\s*(\d{2,4})/i) || filename.match(/(\d{4})/) || filename.match(/(\d{2})/);
+  if (!m) return filename.replace(/\.[^.]+$/,'');
+  var y = m[1];
+  if (y.length === 2) y = (parseInt(y) > 50 ? '19' : '20') + y;
+  return 'FY' + y.slice(-2);
+}
+
+/* ── Load files ── */
+function loadFiles() {
+  var ff = document.getElementById('file-feedback').files;
+  var cf = document.getElementById('file-contacts').files;
+  var status = document.getElementById('load-status');
+  if (!ff.length && !cf.length) { status.textContent = 'Select at least one file.'; return; }
+  var pending = ff.length + (cf.length ? 1 : 0);
+  status.textContent = 'Reading...';
+  var done = () => { if (--pending <= 0) finalize(); };
+  for (var i = 0; i < ff.length; i++) {
+    (function(file) {
+      var yr = extractYear(file.name);
+      var r = new FileReader();
+      r.onload = e => {
+        parseAnnualFile(e.target.result, yr);
+        done();
+      };
+      r.readAsText(file);
+    })(ff[i]);
+  }
+  if (cf.length) {
+    var r2 = new FileReader();
+    r2.onload = e => { parseContactsFile(e.target.result); done(); };
+    r2.readAsText(cf[0]);
+  }
+}
+
+function parseAnnualFile(text, yr) {
+  var rows = parseCSV(text);
+  rows.forEach(row => {
+    var fscs = row['FSCSKEY'] || row['fscskey'] || row['FscsKey'] || '';
+    if (!fscs) return;
+    if (!feedbackData[fscs]) feedbackData[fscs] = { libname: row['LIBNAME'] || row['libname'] || fscs, rows: {} };
+    var fbKey = Object.keys(row).find(k => /feedback/i.test(k));
+    var introKey = Object.keys(row).find(k => /intro/i.test(k));
+    var emailKey = Object.keys(row).find(k => /email/i.test(k) && k !== 'FSCSKEY');
+    feedbackData[fscs].rows[yr] = {
+      feedback: fbKey ? row[fbKey] : '',
+      intro: introKey ? row[introKey] : '',
+      emailFlag: emailKey ? row[emailKey] : ''
+    };
+  });
+}
+
+function parseContactsFile(text) {
+  var rows = parseCSV(text);
+  rows.forEach(row => {
+    var fscs = row['LibraryFSCSKEY'] || row['FSCSKEY'] || row['fscskey'] || '';
+    if (!fscs) return;
+    if (!contactsData[fscs]) contactsData[fscs] = [];
+    contactsData[fscs].push(row);
+  });
+}
+
+/* ── Demo data ── */
+function loadDemo() {
+  feedbackData = {
+    'MN0001': { libname: 'Arrowhead Library System', rows: {
+      'FY24': { feedback: 'Why did they list e-serials locally, with no e-serial circ, not regionally? You left a note on P17b) E-serial Circulation that says "Numbers for eserials are going in Downloadable Circulation just for this year." Relatedly, you listed 5,729 e-serials licensed locally, but the rest of your electronic resources are listed as regionally licensed. Should those 5,729 be counted as regionally licensed?', intro: '' },
+      'FY23': { feedback: 'Staff counts look slightly off — please confirm whether the FTE figures include part-time hourly staff or only salaried employees. Operating expenditures total does not match the sum of subcategories by about $4,200.', intro: '' },
+      'FY22': { feedback: 'Overall a clean submission. One question: collection size dropped by ~12% from prior year — was there a weeding project? Please note that in your Intro field if so.', intro: '' }
+    }},
+    'MN0042': { libname: 'Duluth Public Library', rows: {
+      'FY24': { feedback: 'Interlibrary loan numbers appear much higher than peer libraries of similar size. Can you confirm the count methodology?', intro: '' },
+      'FY23': { feedback: 'Capital outlay line is blank but you mentioned a roof repair project in the narrative. Please clarify.', intro: '' }
+    }},
+    'MN0087': { libname: 'St. Cloud Public Library', rows: {
+      'FY24': { feedback: 'Program attendance is up 34% — great to see. However, the number of programs offered is down 8%. Were programs larger in scale this year?', intro: '' }
+    }},
+    'MN0112': { libname: 'Hennepin County Library', rows: {
+      'FY24': { feedback: '', intro: '' }
+    }},
+    'MN0133': { libname: 'Anoka County Library', rows: {
+      'FY24': { feedback: '', intro: '' }
+    }}
+  };
+  contactsData = {
+    'MN0001': [{ Primary_Email: 'stephanie.wichlacz@alslib.info', Title: 'Regional Librarian', Active: 'TRUE' }],
+    'MN0042': [{ Primary_Email: 'director@duluthlibrary.org', Title: 'Library Director', Active: 'TRUE' }, { Primary_Email: 'reports@duluthlibrary.org', Title: 'Data Coordinator', Active: 'TRUE' }],
+    'MN0087': [{ Primary_Email: 'jsmith@stcloudlib.org', Title: 'Director', Active: 'TRUE' }]
+  };
+  finalize();
+}
+
+function finalize() {
+  libraries = Object.keys(feedbackData).map(fscs => ({ fscs, name: feedbackData[fscs].libname })).sort((a,b) => a.name.localeCompare(b.name));
+  document.getElementById('load-status').textContent = 'Loaded ' + libraries.length + ' libraries.';
+  document.getElementById('load-screen').style.display = 'none';
+  document.getElementById('sidebar').style.display = 'flex';
+  document.getElementById('topbar-actions').style.display = 'flex';
+  document.getElementById('empty-state').style.display = 'flex';
+  renderLibList('');
+}
+
+/* ── Library list ── */
+function filterLibs() {
+  renderLibList(document.getElementById('lib-search').value.toLowerCase());
+}
+
+function getStatus(fscs) {
+  var e = entries[fscs] || {};
+  var allChecked = e.chkLibpas && e.chkNotes && e.chkPrior;
+  var hasFeedback = e.feedback && e.feedback.trim();
+  if (allChecked && hasFeedback) return 'done';
+  if (hasFeedback || e.chkLibpas || e.chkNotes || e.chkPrior) return 'partial';
+  return 'empty';
+}
+
+function renderLibList(q) {
+  var filtered = libraries.filter(l => l.name.toLowerCase().includes(q) || l.fscs.toLowerCase().includes(q));
+  var done = filtered.filter(l => getStatus(l.fscs) === 'done').length;
+  var total = libraries.length;
+  var pct = total ? Math.round((Object.values(entries).filter(e => e && e.chkLibpas && e.chkNotes && e.chkPrior && e.feedback && e.feedback.trim()).length / total) * 100) : 0;
+  document.getElementById('lib-count-label').textContent = filtered.length + ' of ' + total;
+  document.getElementById('progress-label').textContent = pct + '% complete';
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('lib-list').innerHTML = filtered.map(l => {
+    var s = getStatus(l.fscs);
+    return '<div class="lib-item' + (currentFSCS === l.fscs ? ' active' : '') + '" onclick="selectLib(\'' + l.fscs + '\')">'
+      + '<div><div class="lib-item-name">' + esc(l.name) + '</div><div class="lib-item-fscs">' + l.fscs + '</div></div>'
+      + '<span class="dot dot-' + s + '"></span>'
+      + '</div>';
+  }).join('');
+}
+
+/* ── Select library ── */
+function selectLib(fscs) {
+  currentFSCS = fscs;
+  var data = feedbackData[fscs];
+  document.getElementById('form-libname').textContent = data.libname;
+  document.getElementById('form-fscs').textContent = fscs;
+
+  var e = entries[fscs] || {};
+  document.getElementById('feedback-text').value = e.feedback || '';
+  document.getElementById('chk-libpas').checked = !!e.chkLibpas;
+  document.getElementById('chk-notes').checked = !!e.chkNotes;
+  document.getElementById('chk-prior').checked = !!e.chkPrior;
+  document.getElementById('save-msg').textContent = '';
+
+  var contacts = (contactsData[fscs] || []).filter(c => c.Active !== 'FALSE');
+  document.getElementById('contact-chips').innerHTML = contacts.length
+    ? contacts.map(c => '<span class="contact-chip">' + esc(c.Primary_Email || c.Alternate_Email || '') + (c.Title ? ' · ' + esc(c.Title) : '') + '</span>').join('')
+    : '<span style="font-size:12px;color:var(--ink3);font-family:var(--mono);">No contacts</span>';
+
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('form-wrap').style.display = 'block';
+
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', i===0));
+  document.querySelectorAll('.tab-panel').forEach((p,i) => p.classList.toggle('active', i===0));
+
+  renderLibList(document.getElementById('lib-search').value.toLowerCase());
+}
+
+/* ── Save ── */
+function saveEntry() {
+  if (!currentFSCS) return;
+  entries[currentFSCS] = {
+    feedback: document.getElementById('feedback-text').value,
+    chkLibpas: document.getElementById('chk-libpas').checked,
+    chkNotes: document.getElementById('chk-notes').checked,
+    chkPrior: document.getElementById('chk-prior').checked
+  };
+  document.getElementById('save-msg').textContent = 'Saved';
+  setTimeout(() => document.getElementById('save-msg').textContent = '', 2000);
+  renderLibList(document.getElementById('lib-search').value.toLowerCase());
+}
+
+/* ── Tabs ── */
+function switchTab(name, el) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'history') renderHistory();
+  if (name === 'email') renderEmail();
+}
+
+/* ── History ── */
+function renderHistory() {
+  if (!currentFSCS) return;
+  var rows = feedbackData[currentFSCS].rows;
+  var years = Object.keys(rows).sort().reverse();
+  if (!years.length) {
+    document.getElementById('history-content').innerHTML = '<p class="history-empty">No prior year data found.</p>';
+    return;
+  }
+  document.getElementById('history-content').innerHTML = years.map(yr => {
+    var r = rows[yr];
+    var fb = (r.feedback || '').trim();
+    return '<div class="history-entry">'
+      + '<div class="history-year">' + yr + '</div>'
+      + (r.intro ? '<div class="history-intro">' + esc(r.intro) + '</div>' : '')
+      + '<div class="history-text">' + (fb ? esc(fb) : '<em style="color:var(--ink3)">No feedback recorded.</em>') + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+/* ── Email ── */
+function renderEmail() {
+  if (!currentFSCS) return;
+  var libname = feedbackData[currentFSCS].libname;
+  var feedback = (entries[currentFSCS] || {}).feedback || '';
+  var contacts = (contactsData[currentFSCS] || []).filter(c => c.Active !== 'FALSE');
+  var toList = contacts.map(c => c.Primary_Email || c.Alternate_Email || '').filter(Boolean);
+  document.getElementById('email-to').value = toList.join(', ') || 'No contacts on file';
+  document.getElementById('email-subject').value = 'Annual report follow-up — ' + libname;
+  var body = 'Hello,\n\nThank you for submitting your annual report for ' + libname + '. I have reviewed the data and have the following questions and notes for you:\n\n'
+    + (feedback || '[Enter your feedback in the Review tab first, then return here.]')
+    + '\n\nPlease feel free to reach out if you have any questions or need clarification on any of the items above.\n\nBest regards';
+  document.getElementById('email-body').value = body;
+}
+
+function generateEmail() { renderEmail(); }
+
+function copyEmail() {
+  var subject = document.getElementById('email-subject').value;
+  var body = document.getElementById('email-body').value;
+  var full = 'To: ' + document.getElementById('email-to').value + '\nSubject: ' + subject + '\n\n' + body;
+  navigator.clipboard.writeText(full).then(() => {
+    var msg = document.getElementById('email-copy-msg');
+    msg.textContent = 'Copied to clipboard';
+    setTimeout(() => msg.textContent = '', 2500);
+  });
+}
+
+/* ── Export / Import session ── */
+function exportSession() {
+  var payload = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    entries: entries,
+    feedbackData: feedbackData,
+    contactsData: contactsData
+  };
+  var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'library-review-session-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  notify('Session exported');
+}
+
+function openImport() { document.getElementById('import-modal').classList.add('open'); }
+function closeImport() { document.getElementById('import-modal').classList.remove('open'); }
+
+function importSession() {
+  var f = document.getElementById('file-session').files[0];
+  if (!f) return;
+  readSession(f);
+}
+
+function importSessionModal() {
+  var f = document.getElementById('file-session-modal').files[0];
+  if (!f) return;
+  readSession(f, () => closeImport());
+}
+
+function readSession(file, cb) {
+  var r = new FileReader();
+  r.onload = e => {
+    try {
+      var p = JSON.parse(e.target.result);
+      if (p.entries) entries = p.entries;
+      if (p.feedbackData) feedbackData = p.feedbackData;
+      if (p.contactsData) contactsData = p.contactsData;
+      finalize();
+      notify('Session restored');
+      if (cb) cb();
+    } catch(err) {
+      notify('Could not read session file');
+    }
+  };
+  r.readAsText(file);
+}
+
+/* ── Helpers ── */
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function notify(msg) {
+  var el = document.getElementById('notif');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2200);
+}
+</script>
+</body>
+</html>
