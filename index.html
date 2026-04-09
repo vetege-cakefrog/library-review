@@ -357,6 +357,69 @@ body {
 }
 .legend-item { display: flex; align-items: center; gap: 5px; }
 
+/* ── Overview table ── */
+.overview-wrap {
+  padding: 1.5rem 2rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.overview-title {
+  font-family: var(--serif);
+  font-size: 1.4rem;
+}
+.overview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.overview-table th {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink3);
+  text-align: left;
+  padding: 6px 12px;
+  border-bottom: 2px solid var(--rule);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+.overview-table th:hover { color: var(--ink); }
+.overview-table th .sort-arrow { margin-left: 4px; opacity: 0.4; }
+.overview-table th.sorted .sort-arrow { opacity: 1; color: var(--accent); }
+.overview-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: middle;
+}
+.overview-table tr:last-child td { border-bottom: none; }
+.overview-table tr:hover td { background: var(--paper2); cursor: pointer; }
+.overview-table tr.ov-done td { background: var(--accent-light); }
+.overview-table tr.ov-done:hover td { background: #daeae0; }
+.ov-name { font-weight: 500; color: var(--ink); }
+.ov-fscs { font-family: var(--mono); font-size: 11px; color: var(--ink3); }
+.ov-checks { display: flex; gap: 4px; align-items: center; }
+.ov-check {
+  width: 16px; height: 16px; border-radius: 3px;
+  border: 1px solid var(--rule);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; color: var(--accent);
+  background: var(--paper);
+}
+.ov-check.checked { background: var(--accent); color: #fff; border-color: var(--accent); }
+.ov-feedback-snip {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink2);
+  font-size: 12px;
+}
+.ov-feedback-none { color: var(--ink3); font-style: italic; font-size: 12px; }
+
 /* ── Gist sync dot ── */
 .sync-dot {
   width: 6px; height: 6px; border-radius: 50%;
@@ -398,6 +461,7 @@ body {
         <span class="legend-item"><span class="dot dot-partial"></span>in progress</span>
         <span class="legend-item"><span class="dot dot-empty"></span>not started</span>
       </div>
+      <button class="topbar-btn" id="overview-btn" onclick="toggleOverview()">Overview</button>
       <span id="autosave-indicator" style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.45);letter-spacing:0.04em;"></span>
       <button class="topbar-btn" id="sync-btn" onclick="openSyncModal()" style="display:flex;align-items:center;"><span class="sync-dot" id="sync-dot"></span>Gist sync</button>
       <button class="topbar-btn" onclick="openImport()">Import session</button>
@@ -447,6 +511,26 @@ body {
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Overview table -->
+    <div class="overview-wrap" id="overview-wrap" style="display:none;">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;">
+        <span class="overview-title">All libraries</span>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--ink3);" id="overview-summary"></span>
+      </div>
+      <table class="overview-table" id="overview-table">
+        <thead>
+          <tr>
+            <th style="width:28px;" onclick="sortOverview('status')"><span class="sort-arrow" id="sarr-status">↕</span></th>
+            <th onclick="sortOverview('name')">Library <span class="sort-arrow" id="sarr-name">↕</span></th>
+            <th onclick="sortOverview('fscs')">FSCS <span class="sort-arrow" id="sarr-fscs">↕</span></th>
+            <th onclick="sortOverview('checks')">Checklist <span class="sort-arrow" id="sarr-checks">↕</span></th>
+            <th onclick="sortOverview('feedback')">Feedback <span class="sort-arrow" id="sarr-feedback">↕</span></th>
+          </tr>
+        </thead>
+        <tbody id="overview-body"></tbody>
+      </table>
     </div>
 
     <!-- Empty state -->
@@ -778,6 +862,7 @@ function saveEntry() {
   document.getElementById('save-msg').textContent = 'Saved';
   setTimeout(() => document.getElementById('save-msg').textContent = '', 2000);
   renderLibList(document.getElementById('lib-search').value.toLowerCase());
+  if (overviewVisible) renderOverview();
   autoSave();
 }
 
@@ -945,6 +1030,92 @@ function fetchFromGist(cfg) {
       if (!f || !f.content) throw new Error('empty');
       return JSON.parse(f.content);
     });
+}
+
+/* ── Overview ── */
+var overviewSort = { key: 'status', dir: 1 };
+var overviewVisible = false;
+
+function toggleOverview() {
+  overviewVisible = !overviewVisible;
+  document.getElementById('overview-wrap').style.display = overviewVisible ? 'flex' : 'none';
+  document.getElementById('empty-state').style.display = overviewVisible ? 'none' : (currentFSCS ? 'none' : 'flex');
+  document.getElementById('form-wrap').style.display = overviewVisible ? 'none' : (currentFSCS ? 'block' : 'none');
+  document.getElementById('overview-btn').classList.toggle('accent', overviewVisible);
+  if (overviewVisible) renderOverview();
+}
+
+function sortOverview(key) {
+  if (overviewSort.key === key) overviewSort.dir *= -1;
+  else { overviewSort.key = key; overviewSort.dir = 1; }
+  renderOverview();
+}
+
+function renderOverview() {
+  var statusRank = { done: 0, partial: 1, empty: 2 };
+
+  var rows = libraries.map(function(l) {
+    var e = entries[l.fscs] || {};
+    var s = getStatus(l.fscs);
+    var checks = [e.chkLibpas, e.chkNotes, e.chkPrior];
+    var checkCount = checks.filter(Boolean).length;
+    var fb = (e.feedback || '').trim();
+    return { fscs: l.fscs, name: l.name, status: s, checks: checks, checkCount: checkCount, feedback: fb };
+  });
+
+  var k = overviewSort.key, d = overviewSort.dir;
+  rows.sort(function(a, b) {
+    var av, bv;
+    if (k === 'status')   { av = statusRank[a.status]; bv = statusRank[b.status]; }
+    else if (k === 'name')     { return d * a.name.localeCompare(b.name); }
+    else if (k === 'fscs')     { return d * a.fscs.localeCompare(b.fscs); }
+    else if (k === 'checks')   { av = a.checkCount; bv = b.checkCount; }
+    else if (k === 'feedback') { av = a.feedback.length; bv = b.feedback.length; }
+    return d * ((av < bv) ? -1 : (av > bv) ? 1 : a.name.localeCompare(b.name));
+  });
+
+  // Update sort arrows
+  ['status','name','fscs','checks','feedback'].forEach(function(col) {
+    var el = document.getElementById('sarr-' + col);
+    var th = el && el.parentElement;
+    if (!el) return;
+    if (col === k) {
+      el.textContent = d === 1 ? '↑' : '↓';
+      th.classList.add('sorted');
+    } else {
+      el.textContent = '↕';
+      th.classList.remove('sorted');
+    }
+  });
+
+  var done  = rows.filter(function(r){ return r.status === 'done'; }).length;
+  var partial = rows.filter(function(r){ return r.status === 'partial'; }).length;
+  document.getElementById('overview-summary').textContent =
+    done + ' complete · ' + partial + ' in progress · ' + (rows.length - done - partial) + ' not started';
+
+  var checkLabels = ['LibPAS', 'Notes', 'Prior yr'];
+  document.getElementById('overview-body').innerHTML = rows.map(function(r) {
+    var checksHtml = r.checks.map(function(c, i) {
+      return '<span class="ov-check' + (c ? ' checked' : '') + '" title="' + checkLabels[i] + '">' + (c ? '✓' : '') + '</span>';
+    }).join('');
+    var fbHtml = r.feedback
+      ? '<span class="ov-feedback-snip" title="' + esc(r.feedback) + '">' + esc(r.feedback) + '</span>'
+      : '<span class="ov-feedback-none">none</span>';
+    return '<tr class="' + (r.status === 'done' ? 'ov-done' : '') + '" onclick="selectLibFromOverview(\'' + r.fscs + '\')">'
+      + '<td><span class="dot dot-' + r.status + '"></span></td>'
+      + '<td><div class="ov-name">' + esc(r.name) + '</div></td>'
+      + '<td><div class="ov-fscs">' + esc(r.fscs) + '</div></td>'
+      + '<td><div class="ov-checks">' + checksHtml + '</div></td>'
+      + '<td>' + fbHtml + '</td>'
+      + '</tr>';
+  }).join('');
+}
+
+function selectLibFromOverview(fscs) {
+  overviewVisible = false;
+  document.getElementById('overview-wrap').style.display = 'none';
+  document.getElementById('overview-btn').classList.remove('accent');
+  selectLib(fscs);
 }
 
 /* ── Gist sync modal ── */
