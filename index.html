@@ -958,7 +958,10 @@ function renderEmail() {
   var toList = contacts.map(c => c.Primary_Email || c.Alternate_Email || '').filter(Boolean);
   document.getElementById('email-to').value = toList.join(', ') || 'No contacts on file';
   document.getElementById('email-subject').value = 'Annual report follow-up — ' + libname;
-  var body = 'Hello,\n\nThank you for submitting your annual report for ' + libname + '. I have reviewed the data and have the following questions and notes for you:\n\n'
+  var lead = contacts.find(function(c){ return c['Lead'] === 'TRUE'; }) || contacts[0];
+  var firstName = (lead && lead['First Name'] && lead['First Name'].trim()) || '';
+  var greeting = firstName ? 'Hello ' + firstName + ',' : 'Hello,';
+  var body = greeting + '\n\nThank you for submitting your annual report for ' + libname + '. I have reviewed the data and have the following questions and notes for you:\n\n'
     + (feedback || '[Enter your feedback in the Review tab first, then return here.]')
     + '\n\nPlease feel free to reach out if you have any questions or need clarification on any of the items above.\n\nBest regards';
   document.getElementById('email-body').value = body;
