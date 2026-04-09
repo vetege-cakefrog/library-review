@@ -655,6 +655,8 @@ var contactsData = {};
 var libraries = [];
 var currentFSCS = null;
 var entries = {};
+var idIndex = {};      // ID → FSCSKEY  (built from whichever file has both columns)
+var pendingByID = {};  // ID → partial entry, awaiting FSCSKEY resolution in finalize()
 
 /* ── Parsing ── */
 function detectSep(line) {
@@ -663,29 +665,41 @@ function detectSep(line) {
   return t >= c ? '\t' : ',';
 }
 
+// Full RFC-4180 state-machine parser — correctly handles quoted fields
+// containing commas, newlines, and escaped double-quotes ("").
 function parseCSV(text) {
-  var lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').trim().split('\n');
-  if (!lines.length) return [];
-  var sep = detectSep(lines[0]);
-  var headers = splitLine(lines[0], sep);
-  return lines.slice(1).filter(l => l.trim()).map(line => {
-    var vals = splitLine(line, sep);
-    var obj = {};
-    headers.forEach((h,i) => obj[h.trim()] = (vals[i]||'').trim());
-    return obj;
-  });
-}
+  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  if (!text.trim()) return [];
 
-function splitLine(line, sep) {
-  var vals = [], cur = '', inQ = false;
-  for (var i = 0; i < line.length; i++) {
-    var c = line[i];
-    if (c === '"') { inQ = !inQ; }
-    else if (c === sep && !inQ) { vals.push(cur); cur = ''; }
-    else cur += c;
+  var firstNL = text.indexOf('\n');
+  var sep = detectSep(firstNL >= 0 ? text.slice(0, firstNL) : text);
+
+  var records = [], record = [], field = '', inQuote = false;
+  for (var i = 0; i < text.length; i++) {
+    var c = text[i];
+    if (inQuote) {
+      if (c === '"' && text[i + 1] === '"') { field += '"'; i++; }   // escaped ""
+      else if (c === '"')                   { inQuote = false; }      // closing quote
+      else                                  { field += c; }           // content inside quotes
+    } else {
+      if      (c === '"')  { inQuote = true; }
+      else if (c === sep)  { record.push(field); field = ''; }
+      else if (c === '\n') { record.push(field); field = ''; records.push(record); record = []; }
+      else                 { field += c; }
+    }
   }
-  vals.push(cur);
-  return vals;
+  record.push(field);
+  if (record.some(function(f){ return f.trim(); })) records.push(record);
+
+  if (!records.length) return [];
+  var headers = records[0].map(function(h){ return h.trim(); });
+  return records.slice(1)
+    .filter(function(r){ return r.some(function(f){ return f.trim(); }); })
+    .map(function(r){
+      var obj = {};
+      headers.forEach(function(h, i){ obj[h] = (r[i] || '').trim(); });
+      return obj;
+    });
 }
 
 function extractYear(filename) {
@@ -725,18 +739,43 @@ function loadFiles() {
 
 function parseAnnualFile(text, yr) {
   var rows = parseCSV(text);
-  rows.forEach(row => {
-    var fscs = row['FSCSKEY'] || row['fscskey'] || row['FscsKey'] || '';
-    if (!fscs) return;
-    if (!feedbackData[fscs]) feedbackData[fscs] = { libname: row['LIBNAME'] || row['libname'] || fscs, rows: {} };
-    var fbKey = Object.keys(row).find(k => /feedback/i.test(k));
-    var introKey = Object.keys(row).find(k => /intro/i.test(k));
-    var emailKey = Object.keys(row).find(k => /email/i.test(k) && k !== 'FSCSKEY');
-    feedbackData[fscs].rows[yr] = {
-      feedback: fbKey ? row[fbKey] : '',
-      intro: introKey ? row[introKey] : '',
+  rows.forEach(function(row) {
+    var id   = (row['ID']  || '').trim();
+    var fscs = (row['FSCSKEY'] || row['FSCSKey'] || row['fscskey'] || '').trim();
+    var name = (row['LIBNAME'] || row['libname'] || '').trim();
+
+    if (!id && !fscs) return; // completely empty key row — skip
+
+    // Build the ID→FSCSKEY index whenever both are present
+    if (id && fscs) idIndex[id] = fscs;
+
+    // Pick feedback column: anything with "feedback" in the name, or anything
+    // with "review" that isn't a LibPAS column (covers "2021_Review" etc.)
+    var fbKey = Object.keys(row).find(function(k) {
+      return /feedback/i.test(k) || (/review/i.test(k) && !/libpas/i.test(k));
+    });
+    var introKey = Object.keys(row).find(function(k){ return /^intro/i.test(k); });
+    var emailKey = Object.keys(row).find(function(k){
+      return /email/i.test(k) && !/lsa/i.test(k) && !/fscs/i.test(k);
+    });
+
+    var rowData = {
+      feedback: fbKey    ? row[fbKey]    : '',
+      intro:    introKey ? row[introKey] : '',
       emailFlag: emailKey ? row[emailKey] : ''
     };
+
+    if (fscs) {
+      // We know the FSCSKEY — store directly
+      if (!feedbackData[fscs]) feedbackData[fscs] = { libname: name || fscs, rows: {} };
+      if (name) feedbackData[fscs].libname = name;
+      feedbackData[fscs].rows[yr] = rowData;
+    } else if (id) {
+      // No FSCSKEY yet — park under ID until finalize() resolves it
+      if (!pendingByID[id]) pendingByID[id] = { libname: name || id, rows: {} };
+      if (name) pendingByID[id].libname = name;
+      pendingByID[id].rows[yr] = rowData;
+    }
   });
 }
 
@@ -781,7 +820,19 @@ function loadDemo() {
 }
 
 function finalize() {
-  libraries = Object.keys(feedbackData).map(fscs => ({ fscs, name: feedbackData[fscs].libname })).sort((a,b) => a.name.localeCompare(b.name));
+  // Resolve ID-keyed pending rows into FSCSKEY-keyed feedbackData
+  Object.keys(pendingByID).forEach(function(id) {
+    var fscs = idIndex[id];
+    if (!fscs) return; // no matching FSCSKEY found — discard
+    if (!feedbackData[fscs]) feedbackData[fscs] = { libname: pendingByID[id].libname, rows: {} };
+    // Merge year rows without overwriting years already present
+    Object.keys(pendingByID[id].rows).forEach(function(yr) {
+      if (!feedbackData[fscs].rows[yr]) feedbackData[fscs].rows[yr] = pendingByID[id].rows[yr];
+    });
+  });
+  pendingByID = {};
+
+  libraries = Object.keys(feedbackData).map(function(fscs){ return { fscs: fscs, name: feedbackData[fscs].libname }; }).sort(function(a,b){ return a.name.localeCompare(b.name); });
   document.getElementById('load-status').textContent = 'Loaded ' + libraries.length + ' libraries.';
   document.getElementById('load-screen').style.display = 'none';
   document.getElementById('sidebar').classList.remove('hidden');
