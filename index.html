@@ -523,7 +523,7 @@ body {
       <table class="overview-table" id="overview-table">
         <thead>
           <tr>
-            <th style="width:28px;" onclick="sortOverview('status')"><span class="sort-arrow" id="sarr-status">↕</span></th>
+            <th onclick="sortOverview('status')">Status <span class="sort-arrow" id="sarr-status">↕</span></th>
             <th onclick="sortOverview('name')">Library <span class="sort-arrow" id="sarr-name">↕</span></th>
             <th onclick="sortOverview('fscs')">FSCS <span class="sort-arrow" id="sarr-fscs">↕</span></th>
             <th onclick="sortOverview('checks')">Checklist <span class="sort-arrow" id="sarr-checks">↕</span></th>
@@ -1170,7 +1170,8 @@ function renderOverview() {
       ? '<span class="ov-feedback-snip" title="' + esc(r.feedback) + '">' + esc(r.feedback) + '</span>'
       : '<span class="ov-feedback-none">none</span>';
     return '<tr class="' + (r.status === 'done' ? 'ov-done' : '') + '" onclick="selectLibFromOverview(\'' + r.fscs + '\')">'
-      + '<td><span class="dot dot-' + r.status + '"></span></td>'
+      + '<td style="white-space:nowrap;"><span class="dot dot-' + r.status + '" style="margin-right:6px;"></span>'
+      + { done: 'Complete', partial: 'In progress', empty: 'Not started' }[r.status] + '</td>'
       + '<td><div class="ov-name">' + esc(r.name) + '</div></td>'
       + '<td><div class="ov-fscs">' + esc(r.fscs) + '</div></td>'
       + '<td><div class="ov-checks">' + checksHtml + '</div></td>'
