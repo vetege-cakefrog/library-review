@@ -1086,10 +1086,18 @@ function fetchFromGist(cfg) {
 
 /* ── New session ── */
 function newSession() {
-  if (!confirm('Start a new session?\n\nThis will clear all current reviews and loaded files from this browser. Your Gist sync settings will be kept.\n\nMake sure you have exported your session first if you want to keep a backup.')) return;
+  if (!confirm('Start a new session?\n\nThis will clear all current reviews and loaded files from this browser and from Gist sync (if enabled), so all browsers start fresh. Your Gist sync settings will be kept.\n\nMake sure you have exported your session first if you want to keep a backup.')) return;
   localStorage.removeItem('libraryReviewSession');
   localStorage.setItem('libraryReviewNewSession', '1'); // tells auto-restore to stand down
-  location.reload();
+
+  var cfg = getGistConfig();
+  if (cfg) {
+    // Push an empty session to the Gist so every other browser also sees a clean slate
+    var empty = JSON.stringify({ version: 1, savedAt: new Date().toISOString(), entries: {}, feedbackData: {}, contactsData: {} });
+    pushToGist(cfg, empty).catch(function(){}).then(function(){ location.reload(); });
+  } else {
+    location.reload();
+  }
 }
 
 /* ── Overview ── */
