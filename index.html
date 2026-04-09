@@ -462,6 +462,7 @@ body {
         <span class="legend-item"><span class="dot dot-empty"></span>not started</span>
       </div>
       <button class="topbar-btn" id="overview-btn" onclick="toggleOverview()">Overview</button>
+      <button class="topbar-btn" onclick="newSession()" title="Clear session and load new files">New session</button>
       <span id="autosave-indicator" style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.45);letter-spacing:0.04em;"></span>
       <button class="topbar-btn" id="sync-btn" onclick="openSyncModal()" style="display:flex;align-items:center;"><span class="sync-dot" id="sync-dot"></span>Gist sync</button>
       <button class="topbar-btn" onclick="openImport()">Import session</button>
@@ -1081,6 +1082,13 @@ function fetchFromGist(cfg) {
       if (!f || !f.content) throw new Error('empty');
       return JSON.parse(f.content);
     });
+}
+
+/* ── New session ── */
+function newSession() {
+  if (!confirm('Start a new session?\n\nThis will clear all current reviews and loaded files from this browser. Your Gist sync settings will be kept.\n\nMake sure you have exported your session first if you want to keep a backup.')) return;
+  localStorage.removeItem('libraryReviewSession');
+  location.reload();
 }
 
 /* ── Overview ── */
