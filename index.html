@@ -467,6 +467,7 @@ body {
       <span id="autosave-indicator" style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.45);letter-spacing:0.04em;"></span>
       <button class="topbar-btn" id="sync-btn" onclick="openSyncModal()" style="display:flex;align-items:center;"><span class="sync-dot" id="sync-dot"></span>Gist sync</button>
       <button class="topbar-btn" onclick="openImport()">Import session</button>
+      <button class="topbar-btn" onclick="exportCSV()">Export CSV</button>
       <button class="topbar-btn accent" onclick="exportSession()">Export session</button>
     </div>
   </header>
@@ -981,6 +982,39 @@ function copyEmail() {
 }
 
 /* ── Export / Import session ── */
+function exportCSV() {
+  var headers = ['FSCS Key', 'Library Name', 'Feedback', 'LibPAS Reviewed', 'Notes Reviewed', 'Prior Year Reviewed'];
+  var rows = libraries.map(function(l) {
+    var e = entries[l.fscs] || {};
+    return [
+      l.fscs,
+      l.name,
+      (e.feedback || '').replace(/\n/g, ' '),
+      e.chkLibpas ? 'Yes' : 'No',
+      e.chkNotes  ? 'Yes' : 'No',
+      e.chkPrior  ? 'Yes' : 'No'
+    ];
+  });
+
+  var csv = [headers].concat(rows).map(function(row) {
+    return row.map(function(cell) {
+      var s = String(cell == null ? '' : cell);
+      // Quote any cell containing a comma, double-quote, or newline
+      if (s.indexOf(',') !== -1 || s.indexOf('"') !== -1 || s.indexOf('\n') !== -1) {
+        s = '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    }).join(',');
+  }).join('\r\n');
+
+  var blob = new Blob([csv], { type: 'text/csv' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'library-review-' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+  notify('CSV exported');
+}
+
 function exportSession() {
   var payload = {
     version: 1,
