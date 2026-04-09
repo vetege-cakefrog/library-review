@@ -1088,6 +1088,7 @@ function fetchFromGist(cfg) {
 function newSession() {
   if (!confirm('Start a new session?\n\nThis will clear all current reviews and loaded files from this browser. Your Gist sync settings will be kept.\n\nMake sure you have exported your session first if you want to keep a backup.')) return;
   localStorage.removeItem('libraryReviewSession');
+  localStorage.setItem('libraryReviewNewSession', '1'); // tells auto-restore to stand down
   location.reload();
 }
 
@@ -1268,6 +1269,12 @@ function notify(msg) {
 
 /* ── Auto-restore on load ── */
 (function() {
+  // User clicked "New session" — skip all restore paths and show the file picker
+  if (localStorage.getItem('libraryReviewNewSession')) {
+    localStorage.removeItem('libraryReviewNewSession');
+    return;
+  }
+
   function applySession(p, source) {
     if (!p || !p.feedbackData || !Object.keys(p.feedbackData).length) return false;
     entries     = p.entries     || {};
