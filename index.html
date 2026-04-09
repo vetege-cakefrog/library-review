@@ -357,6 +357,18 @@ body {
 }
 .legend-item { display: flex; align-items: center; gap: 5px; }
 
+/* ── Gist sync dot ── */
+.sync-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  display: inline-block; margin-right: 5px; vertical-align: middle; flex-shrink: 0;
+  background: rgba(255,255,255,0.2);
+  transition: background 0.3s;
+}
+.sync-dot.ok      { background: #4ade80; }
+.sync-dot.syncing { background: #facc15; animation: sdpulse 1s ease-in-out infinite; }
+.sync-dot.err     { background: #f87171; }
+@keyframes sdpulse { 0%,100% { opacity:1; } 50% { opacity:0.35; } }
+
 /* ── Import/Export modal backdrop ── */
 .modal-backdrop {
   position: fixed; inset: 0; background: rgba(26,24,20,0.6);
@@ -387,6 +399,7 @@ body {
         <span class="legend-item"><span class="dot dot-empty"></span>not started</span>
       </div>
       <span id="autosave-indicator" style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.45);letter-spacing:0.04em;"></span>
+      <button class="topbar-btn" id="sync-btn" onclick="openSyncModal()" style="display:flex;align-items:center;"><span class="sync-dot" id="sync-dot"></span>Gist sync</button>
       <button class="topbar-btn" onclick="openImport()">Import session</button>
       <button class="topbar-btn accent" onclick="exportSession()">Export session</button>
     </div>
@@ -517,6 +530,29 @@ body {
     <div class="modal-actions">
       <button class="btn primary" onclick="importSessionModal()">Restore</button>
       <button class="btn" onclick="closeImport()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Gist Sync modal -->
+<div class="modal-backdrop" id="sync-modal">
+  <div class="modal">
+    <h3>GitHub Gist sync</h3>
+    <p>Sync your session across browsers and devices via a private GitHub Gist — your data stays in your own GitHub account and is never sent anywhere else.<br><br>
+    Requires a <strong>classic</strong> personal access token with the <code style="font-family:var(--mono);font-size:12px;background:var(--paper2);padding:1px 5px;border-radius:3px;">gist</code> scope. Create one at <em>github.com → Settings → Developer settings → Personal access tokens → Tokens (classic)</em>.</p>
+    <div class="email-field" style="margin-bottom:0.8rem;">
+      <label>GitHub token (classic, gist scope)</label>
+      <input type="password" id="sync-pat-input" placeholder="ghp_..." autocomplete="off"
+        style="width:100%;font-family:var(--mono);font-size:12px;padding:8px 10px;background:var(--paper);border:1px solid var(--rule);border-radius:3px;color:var(--ink);outline:none;">
+    </div>
+    <div style="font-family:var(--mono);font-size:11px;color:var(--ink3);margin-bottom:0.8rem;">
+      Gist ID: <span id="sync-gist-id" style="color:var(--ink2);">none</span>
+    </div>
+    <div style="font-family:var(--mono);font-size:11px;min-height:1.4em;margin-bottom:1.2rem;" id="sync-modal-status"></div>
+    <div class="modal-actions">
+      <button class="btn primary" onclick="enableGistSync()">Enable sync</button>
+      <button class="btn danger" onclick="disableGistSync()">Disable sync</button>
+      <button class="btn" onclick="closeSyncModal()">Close</button>
     </div>
   </div>
 </div>
@@ -848,7 +884,7 @@ function readSession(file, cb) {
   r.readAsText(file);
 }
 
-/* ── Auto-save ── */
+/* ── Auto-save + Gist sync ── */
 function autoSave() {
   try {
     var payload = {
@@ -858,11 +894,106 @@ function autoSave() {
       feedbackData: feedbackData,
       contactsData: contactsData
     };
-    localStorage.setItem('libraryReviewSession', JSON.stringify(payload));
+    var json = JSON.stringify(payload);
+    localStorage.setItem('libraryReviewSession', json);
     var ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    var el = document.getElementById('autosave-indicator');
-    if (el) el.textContent = 'Auto-saved ' + ts;
+    var indicator = document.getElementById('autosave-indicator');
+    if (indicator) indicator.textContent = 'Auto-saved ' + ts;
+
+    var cfg = getGistConfig();
+    if (cfg) {
+      setSyncDot('syncing');
+      pushToGist(cfg, json)
+        .then(function() {
+          setSyncDot('ok');
+          if (indicator) indicator.textContent = 'Synced ' + ts;
+        })
+        .catch(function() { setSyncDot('err'); });
+    }
   } catch(e) {}
+}
+
+function getGistConfig() {
+  try { return JSON.parse(localStorage.getItem('libraryReviewGistConfig') || 'null'); } catch(e) { return null; }
+}
+
+function setSyncDot(state) {
+  var dot = document.getElementById('sync-dot');
+  if (!dot) return;
+  dot.className = 'sync-dot' + (state ? ' ' + state : '');
+}
+
+function pushToGist(cfg, json) {
+  return fetch('https://api.github.com/gists/' + cfg.gistId, {
+    method: 'PATCH',
+    headers: { 'Authorization': 'Bearer ' + cfg.pat, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ files: { 'library-review-session.json': { content: json } } })
+  }).then(function(r) { if (!r.ok) throw new Error(r.status); });
+}
+
+function fetchFromGist(cfg) {
+  return fetch('https://api.github.com/gists/' + cfg.gistId, {
+    headers: { 'Authorization': 'Bearer ' + cfg.pat }
+  }).then(function(r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function(data) {
+      var f = data.files && data.files['library-review-session.json'];
+      if (!f || !f.content) throw new Error('empty');
+      return JSON.parse(f.content);
+    });
+}
+
+/* ── Gist sync modal ── */
+function openSyncModal() {
+  var cfg = getGistConfig();
+  document.getElementById('sync-pat-input').value = cfg ? cfg.pat : '';
+  document.getElementById('sync-gist-id').textContent = cfg ? cfg.gistId : 'none';
+  document.getElementById('sync-modal-status').textContent = cfg ? 'Gist sync is active.' : '';
+  document.getElementById('sync-modal-status').style.color = 'var(--accent)';
+  document.getElementById('sync-modal').classList.add('open');
+}
+function closeSyncModal() { document.getElementById('sync-modal').classList.remove('open'); }
+
+function enableGistSync() {
+  var pat = document.getElementById('sync-pat-input').value.trim();
+  var statusEl = document.getElementById('sync-modal-status');
+  if (!pat) { statusEl.style.color='var(--warn)'; statusEl.textContent = 'Please enter a token.'; return; }
+  statusEl.style.color='var(--ink3)'; statusEl.textContent = 'Creating Gist…';
+
+  var existing = getGistConfig();
+  if (existing && existing.gistId) {
+    // Re-use existing Gist, just update PAT
+    localStorage.setItem('libraryReviewGistConfig', JSON.stringify({ pat: pat, gistId: existing.gistId }));
+    statusEl.style.color='var(--accent)'; statusEl.textContent = 'Token updated. Gist ID: ' + existing.gistId;
+    setSyncDot('ok');
+    return;
+  }
+
+  var payload = { version:1, savedAt:new Date().toISOString(), entries:entries, feedbackData:feedbackData, contactsData:contactsData };
+  fetch('https://api.github.com/gists', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + pat, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ description: 'Library Annual Report Review — session data', public: false,
+      files: { 'library-review-session.json': { content: JSON.stringify(payload, null, 2) } } })
+  }).then(function(r) { return r.json(); }).then(function(data) {
+    if (!data.id) throw new Error(data.message || 'No gist ID returned');
+    localStorage.setItem('libraryReviewGistConfig', JSON.stringify({ pat: pat, gistId: data.id }));
+    document.getElementById('sync-gist-id').textContent = data.id;
+    statusEl.style.color='var(--accent)';
+    statusEl.textContent = 'Gist sync enabled! Copy the Gist ID above to set up other browsers.';
+    setSyncDot('ok');
+  }).catch(function(e) {
+    statusEl.style.color='var(--warn)';
+    statusEl.textContent = 'Error: ' + (e.message || 'Could not create Gist. Ensure token has gist scope.');
+  });
+}
+
+function disableGistSync() {
+  localStorage.removeItem('libraryReviewGistConfig');
+  document.getElementById('sync-pat-input').value = '';
+  document.getElementById('sync-gist-id').textContent = 'none';
+  var statusEl = document.getElementById('sync-modal-status');
+  statusEl.style.color='var(--ink3)'; statusEl.textContent = 'Gist sync disabled.';
+  setSyncDot('');
 }
 
 /* ── Helpers ── */
@@ -879,20 +1010,41 @@ function notify(msg) {
 
 /* ── Auto-restore on load ── */
 (function() {
-  try {
-    var saved = localStorage.getItem('libraryReviewSession');
-    if (!saved) return;
-    var p = JSON.parse(saved);
-    if (p.feedbackData && Object.keys(p.feedbackData).length) {
-      if (p.entries) entries = p.entries;
-      feedbackData = p.feedbackData;
-      if (p.contactsData) contactsData = p.contactsData;
-      finalize();
-      var ts = p.savedAt ? new Date(p.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-      var el = document.getElementById('autosave-indicator');
-      if (el) el.textContent = 'Restored · last saved ' + ts;
-    }
-  } catch(e) {}
+  function applySession(p, source) {
+    if (!p || !p.feedbackData || !Object.keys(p.feedbackData).length) return false;
+    entries     = p.entries     || {};
+    feedbackData = p.feedbackData;
+    contactsData = p.contactsData || {};
+    finalize();
+    var ts  = p.savedAt ? new Date(p.savedAt).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : '';
+    var ind = document.getElementById('autosave-indicator');
+    if (ind) ind.textContent = source + ' · last saved ' + ts;
+    return true;
+  }
+
+  var cfg = getGistConfig();
+  var localRaw = localStorage.getItem('libraryReviewSession');
+  var localData = null;
+  try { localData = localRaw ? JSON.parse(localRaw) : null; } catch(e) {}
+
+  if (cfg) {
+    setSyncDot('syncing');
+    fetchFromGist(cfg)
+      .then(function(p) {
+        // Use Gist data — it's the cross-browser source of truth
+        applySession(p, 'Synced');
+        // Keep localStorage in sync too
+        localStorage.setItem('libraryReviewSession', JSON.stringify(p));
+        setSyncDot('ok');
+      })
+      .catch(function() {
+        // Gist fetch failed — fall back to localStorage silently
+        setSyncDot('err');
+        applySession(localData, 'Restored (offline)');
+      });
+  } else {
+    applySession(localData, 'Restored');
+  }
 })();
 </script>
 </body>
